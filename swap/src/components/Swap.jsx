@@ -81,29 +81,33 @@ function Swap(props) {
 
   async function fetchPrices(one, two) {
     try {
-      const res = await axios.get(`http://localhost:3001/tokenPrice`, {
-        params: { addressOne: one, addressTwo: two },
+    const res = await axios.get(`https://token-swap-dapp.onrender.com/tokenPrice`, {
+      params: { addressOne: one, addressTwo: two },
+    });
+    setPrices(res.data);
+  } catch (error) {
+    console.error("Error fetching prices:", error.response?.data || error.message);
+      messageApi.open({
+        type: "error",
+        content: "Failed to fetch token prices.",
       });
-      setPrices(res.data);
-    } catch (error) {
-      console.error("Error fetching prices:", error.response?.data || error.message);
-
     }
   }
 
+
   async function fetchDexSwap() {
    /*  if (!isConnected) {
-      
+
       return;
     } */
 
     try {
-      const allowance = await axios.get(`http://localhost:3001/api/1inch-allowance`, {
+      const allowance = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-allowance`, {
         params: { tokenAddress: tokenOne.address, walletAddress: address },
       });
 
       if (allowance.data.allowance === "0") {
-        const approve = await axios.get(`http://localhost:3001/api/1inch-approve-transaction`, {
+        const approve = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-approve-transaction`, {
           params: { tokenAddress: tokenOne.address },
         });
         setTxDetails(approve.data);
@@ -111,7 +115,7 @@ function Swap(props) {
 
         return;
       }
-      const tx = await axios.get(`http://localhost:3001/api/1inch-swap`, {
+      const tx = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-swap`, {
         params: { fromTokenAddress: tokenOne.address, toTokenAddress: tokenTwo.address, amount: tokenOneAmount.padEnd(tokenOne.decimals + tokenOneAmount.length, '0'), fromAddress: address, slippage: slippage },
       }
       )
@@ -160,9 +164,9 @@ useEffect(()=>{
     if(isSuccess){
       messageApi.open({
         type: 'success',
-        content: 'Transaction failed',
-        duration: 1.50,
-      })
+        content: 'Transaction successful!',
+      });
+
     }else if(txDetails.to){
       messageApi.open({
         type:'error',
