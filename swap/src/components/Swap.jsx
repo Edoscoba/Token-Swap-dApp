@@ -87,15 +87,15 @@ function Swap(props) {
       setPrices(res.data);
     } catch (error) {
       console.error("Error fetching prices:", error.response?.data || error.message);
-      alert("Failed to fetch prices. Please check your backend and try again.");
+
     }
   }
 
   async function fetchDexSwap() {
-    if (!isConnected) {
-      alert("Wallet is not connected.");
+   /*  if (!isConnected) {
+      
       return;
-    }
+    } */
 
     try {
       const allowance = await axios.get(`http://localhost:3001/api/1inch-allowance`, {
@@ -107,10 +107,8 @@ function Swap(props) {
           params: { tokenAddress: tokenOne.address },
         });
         setTxDetails(approve.data);
-        console.log('Token Address:', tokenOne.address);
-        console.log('Wallet Address:', address);
 
-        alert("Approval transaction created. Please approve it in your wallet.");
+
         return;
       }
       const tx = await axios.get(`http://localhost:3001/api/1inch-swap`, {
@@ -124,11 +122,11 @@ function Swap(props) {
     } catch (error) {
       console.error("Error fetching Dex swap data:", error.response?.data || error.message);
       if (error.response?.status === 401) {
-        alert("Authorization error: Check your API key.");
+
       } else if (error.response?.status === 500) {
-        alert("Server error: Check backend logs for details.");
+
       } else {
-        alert("An unexpected error occurred. Please try again.");
+
       }
     }
 
