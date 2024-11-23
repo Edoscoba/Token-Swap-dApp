@@ -16,7 +16,7 @@ if (!process.env.MORALIS_KEY || !process.env.ONE_INCH_API_KEY) {
 }
 
 // Middleware
-app.use(cors({ origin: process.env.NODE_ENV === "production" ? "https://tokenswap-utpp.onrender.com" : "*" }));
+app.use(cors({ origin: process.env.NODE_ENV === "production" ? "https://token-swap-dapp.onrender.com" : "*" }));
 app.use(express.json());
 
 // Rate Limiter for Security
