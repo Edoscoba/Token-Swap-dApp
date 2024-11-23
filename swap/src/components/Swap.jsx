@@ -96,12 +96,13 @@ function Swap(props) {
 
 
   async function fetchDexSwap() {
-   /*  if (!isConnected) {
-
+    if (!isConnected) {
+      alert("Please connect your wallet.");
       return;
-    } */
+    }
 
     try {
+      isLoading(true); // Show a loading spinner or similar indicator
       const allowance = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-allowance`, {
         params: { tokenAddress: tokenOne.address, walletAddress: address },
       });
@@ -111,30 +112,30 @@ function Swap(props) {
           params: { tokenAddress: tokenOne.address },
         });
         setTxDetails(approve.data);
-
-
+        alert("Approval transaction ready to send.");
+        isLoading(false);
         return;
       }
+
       const tx = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-swap`, {
-        params: { fromTokenAddress: tokenOne.address, toTokenAddress: tokenTwo.address, amount: tokenOneAmount.padEnd(tokenOne.decimals + tokenOneAmount.length, '0'), fromAddress: address, slippage: slippage },
-      }
-      )
-      let decimals = Number(`1E${tokenTwo.decimals}`)
+        params: {
+          fromTokenAddress: tokenOne.address,
+          toTokenAddress: tokenTwo.address,
+          amount: tokenOneAmount.padEnd(tokenOne.decimals + tokenOneAmount.length, '0'),
+          fromAddress: address,
+          slippage: slippage,
+        },
+      });
+
+      const decimals = Number(`1e${tokenTwo.decimals}`);
       setTokenTwoAmount((Number(tx.data.toTokenAmount) / decimals).toFixed(2));
       setTxDetails(tx.data.tx);
-
+      isLoading(false);
     } catch (error) {
       console.error("Error fetching Dex swap data:", error.response?.data || error.message);
-      if (error.response?.status === 401) {
-
-      } else if (error.response?.status === 500) {
-
-      } else {
-
-      }
+      alert("Error: " + (error.response?.data?.message || error.message));
+      isLoading(false);
     }
-
-
   }
 
   useEffect(() => {
