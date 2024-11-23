@@ -16,7 +16,23 @@ if (!process.env.MORALIS_KEY || !process.env.ONE_INCH_API_KEY) {
 }
 
 // Middleware
-app.use(cors({ origin: process.env.NODE_ENV === "production" ? "https://token-swap-dapp.onrender.com" : "*" }));
+const allowedOrigins = [
+  "https://tokenswap-utpp.onrender.com", // Frontend origin
+  "https://token-swap-dapp.onrender.com", // Backend origin
+];
+
+// Dynamic CORS Middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
 app.use(express.json());
 
 // Rate Limiter for Security
@@ -32,9 +48,10 @@ async function fetchWithRetry(url, config, retries = 3, method = "get") {
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = method === "get"
-        ? await axios.get(url, config)
-        : await axios.post(url, config.data, config);
+      const response =
+        method === "get"
+          ? await axios.get(url, config)
+          : await axios.post(url, config.data, config);
       return response.data;
     } catch (error) {
       if (attempt < retries && error.response?.status === 429) {
@@ -121,7 +138,7 @@ app.get("/tokenPrice", async (req, res) => {
     const usdPrices = {
       tokenOne: responseOne.raw.usdPrice || 0,
       tokenTwo: responseTwo.raw.usdPrice || 0,
-      ratio: (responseOne.raw.usdPrice / responseTwo.raw.usdPrice) || 0,
+      ratio: responseOne.raw.usdPrice / responseTwo.raw.usdPrice || 0,
     };
 
     res.status(200).json(usdPrices);
