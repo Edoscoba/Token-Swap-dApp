@@ -3,90 +3,77 @@ import { Input, Modal, Popover, Radio, message } from "antd";
 import { ArrowDownOutlined, DownOutlined, SettingOutlined } from "@ant-design/icons";
 import tokenList from "../tokenList.json";
 import axios from "axios";
-import { ethers } from "ethers";
 import { useSendTransaction, useWaitForTransaction } from "wagmi";
 
 function Swap(props) {
   const { address, isConnected } = props;
   const [messageApi, contextHolder] = message.useMessage();
   const [slippage, setSlippage] = useState(2.5);
-  const [tokenOneAmount, setTokenOneAmount] = useState(null);
+  const [tokenOneAmount, setTokenOneAmount] = useState("");
   const [tokenTwoAmount, setTokenTwoAmount] = useState(null);
   const [tokenOne, setTokenOne] = useState(tokenList[0]);
   const [tokenTwo, setTokenTwo] = useState(tokenList[1]);
   const [isOpen, setIsOpen] = useState(false);
   const [changeToken, setChangeToken] = useState(1);
   const [prices, setPrices] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [txDetails, setTxDetails] = useState({
     to: null,
     data: null,
     value: null,
   });
 
-  const { data, sendTransaction } = useSendTransaction({
-    request: {
-      from: address,
-      to: String(txDetails.to),
-      data: String(txDetails.data),
-      value: String(txDetails.value),
-    }
+  const { data, sendTransaction } = useSendTransaction();
+  const { isLoading: txLoading, isSuccess } = useWaitForTransaction({
+    hash: data?.hash,
   });
 
-  const { isLoading, isSuccess } = useWaitForTransaction({
-    hash: data?.hash,
-  })
+  useEffect(() => {
+    fetchPrices(tokenList[0].address, tokenList[1].address);
+  }, []);
 
-  function handleSlippageChange(e) {
-    setSlippage(e.target.value);
-  }
-
-  function changeAmount(e) {
-    setTokenOneAmount(e.target.value);
-    if (e.target.value && prices) {
-      setTokenTwoAmount((e.target.value * prices.ratio).toFixed(2));
-    } else {
-      setTokenTwoAmount(null);
+  useEffect(() => {
+    if (txDetails.to && txDetails.data && txDetails.value && isConnected) {
+      sendTransaction({ request: txDetails });
     }
-  }
+  }, [txDetails, isConnected]);
 
-  function switchTokens() {
-    setPrices(null);
-    setTokenOneAmount(null);
-    setTokenTwoAmount(null);
-    const one = tokenOne;
-    const two = tokenTwo;
-    setTokenOne(two);
-    setTokenTwo(one);
-    fetchPrices(two.address, one.address);
-  }
+  useEffect(() => {
+    messageApi.destroy();
 
-  function openModal(asset) {
-    setChangeToken(asset);
-    setIsOpen(true);
-  }
-
-  function modifyToken(i) {
-    setPrices(null);
-    setTokenOneAmount(null);
-    setTokenTwoAmount(null);
-    if (changeToken === 1) {
-      setTokenOne(tokenList[i]);
-      fetchPrices(tokenList[i].address, tokenTwo.address);
-    } else {
-      setTokenTwo(tokenList[i]);
-      fetchPrices(tokenTwo.address, tokenList[i].address);
+    if (txLoading) {
+      messageApi.open({
+        type: "loading",
+        content: "Transaction is pending...",
+        duration: 0,
+      });
     }
-    setIsOpen(false);
-  }
+  }, [txLoading]);
+
+  useEffect(() => {
+    messageApi.destroy();
+    if (isSuccess) {
+      messageApi.open({
+        type: "success",
+        content: "Transaction successful!",
+      });
+    } else if (txDetails.to) {
+      messageApi.open({
+        type: "error",
+        content: "Transaction failed",
+        duration: 1.5,
+      });
+    }
+  }, [isSuccess]);
 
   async function fetchPrices(one, two) {
     try {
-    const res = await axios.get(`https://token-swap-dapp.onrender.com/tokenPrice`, {
-      params: { addressOne: one, addressTwo: two },
-    });
-    setPrices(res.data);
-  } catch (error) {
-    console.error("Error fetching prices:", error.response?.data || error.message);
+      const res = await axios.get(`https://token-swap-dapp.onrender.com/tokenPrice`, {
+        params: { addressOne: one, addressTwo: two },
+      });
+      setPrices(res.data);
+    } catch (error) {
+      console.error("Error fetching prices:", error.response?.data || error.message);
       messageApi.open({
         type: "error",
         content: "Failed to fetch token prices.",
@@ -94,15 +81,19 @@ function Swap(props) {
     }
   }
 
-
   async function fetchDexSwap() {
     if (!isConnected) {
       alert("Please connect your wallet.");
       return;
     }
 
+    if (!tokenOneAmount || isNaN(parseFloat(tokenOneAmount)) || parseFloat(tokenOneAmount) <= 0) {
+      alert("Please enter a valid amount.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      isLoading(true); // Show a loading spinner or similar indicator
       const allowance = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-allowance`, {
         params: { tokenAddress: tokenOne.address, walletAddress: address },
       });
@@ -113,15 +104,20 @@ function Swap(props) {
         });
         setTxDetails(approve.data);
         alert("Approval transaction ready to send.");
-        isLoading(false);
+        setLoading(false);
         return;
       }
+
+      const amountWithDecimals = String(tokenOneAmount).padEnd(
+        tokenOne.decimals + String(tokenOneAmount).length,
+        "0"
+      );
 
       const tx = await axios.get(`https://token-swap-dapp.onrender.com/api/1inch-swap`, {
         params: {
           fromTokenAddress: tokenOne.address,
           toTokenAddress: tokenTwo.address,
-          amount: tokenOneAmount.padEnd(tokenOne.decimals + tokenOneAmount.length, '0'),
+          amount: amountWithDecimals,
           fromAddress: address,
           slippage: slippage,
         },
@@ -130,63 +126,66 @@ function Swap(props) {
       const decimals = Number(`1e${tokenTwo.decimals}`);
       setTokenTwoAmount((Number(tx.data.toTokenAmount) / decimals).toFixed(2));
       setTxDetails(tx.data.tx);
-      isLoading(false);
     } catch (error) {
       console.error("Error fetching Dex swap data:", error.response?.data || error.message);
       alert("Error: " + (error.response?.data?.message || error.message));
-      isLoading(false);
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => {
-    fetchPrices(tokenList[0].address, tokenList[1].address);
-  }, []);
-
-  useEffect(() => {
-    if (txDetails.to && txDetails.data && txDetails.value && isConnected) {
-      sendTransaction();
-    }
-  }, [txDetails, isConnected]);
-
-useEffect(()=>{
-  messageApi.destroy();
-
-  if(isLoading){
-    messageApi.open({
-      type:'loading',
-      content:'transaction is pending...',
-      duration: 0,
-    })
+  function handleSlippageChange(e) {
+    setSlippage(e.target.value);
   }
-}, [isLoading])
 
-  useEffect(() =>{
-    messageApi.destroy();
-    if(isSuccess){
-      messageApi.open({
-        type: 'success',
-        content: 'Transaction successful!',
-      });
+  function changeAmount(e) {
+    const value = e.target.value;
+    setTokenOneAmount(value);
 
-    }else if(txDetails.to){
-      messageApi.open({
-        type:'error',
-        content:'Transaction failed',
-        duration:1.50,
-      })
+    if (value && prices?.ratio) {
+      setTokenTwoAmount((value * prices.ratio).toFixed(2));
+    } else {
+      setTokenTwoAmount(null);
     }
-  }, [isSuccess])
+  }
+
+  function switchTokens() {
+    setPrices(null);
+    setTokenOneAmount("");
+    setTokenTwoAmount(null);
+    setTokenOne(tokenTwo);
+    setTokenTwo(tokenOne);
+    fetchPrices(tokenTwo.address, tokenOne.address);
+  }
+
+  function openModal(asset) {
+    setChangeToken(asset);
+    setIsOpen(true);
+  }
+
+  function modifyToken(i) {
+    setPrices(null);
+    setTokenOneAmount("");
+    setTokenTwoAmount(null);
+
+    if (changeToken === 1) {
+      setTokenOne(tokenList[i]);
+      fetchPrices(tokenList[i].address, tokenTwo.address);
+    } else {
+      setTokenTwo(tokenList[i]);
+      fetchPrices(tokenOne.address, tokenList[i].address);
+    }
+    setIsOpen(false);
+  }
 
   const settings = (
     <>
       <div>Slippage Tolerance</div>
-      <div>
-        <Radio.Group value={slippage} onChange={handleSlippageChange}>
-          <Radio.Button value={0.5}>0.5%</Radio.Button>
-          <Radio.Button value={2.5}>2.5%</Radio.Button>
-          <Radio.Button value={5}>5.0%</Radio.Button>
-        </Radio.Group>
-      </div>
+      <Radio.Group value={slippage} onChange={handleSlippageChange}>
+        <Radio.Button value={0.5}>0.5%</Radio.Button>
+        <Radio.Button value={2.5}>2.5%</Radio.Button>
+        <Radio.Button value={5}>5.0%</Radio.Button>
+      </Radio.Group>
     </>
   );
 
@@ -203,7 +202,7 @@ useEffect(()=>{
           {tokenList.map((e, i) => (
             <div
               className="tokenChoice"
-              key={i}
+              key={e.address || i}
               onClick={() => modifyToken(i)}
             >
               <img src={e.img} alt={e.ticker} className="tokenLogo" />
@@ -218,12 +217,7 @@ useEffect(()=>{
       <div className="tradeBox">
         <div className="tradeBoxHeader">
           <h4>Swap</h4>
-          <Popover
-            content={settings}
-            title="Settings"
-            trigger="click"
-            placement="bottomRight"
-          >
+          <Popover content={settings} title="Settings" trigger="click" placement="bottomRight">
             <SettingOutlined className="cog" />
           </Popover>
         </div>
@@ -232,7 +226,7 @@ useEffect(()=>{
             placeholder="0"
             value={tokenOneAmount}
             onChange={changeAmount}
-            disabled={!prices}
+            disabled={!prices || loading}
           />
           <Input placeholder="0" value={tokenTwoAmount} disabled />
           <div className="switchButton" onClick={switchTokens}>
@@ -249,13 +243,13 @@ useEffect(()=>{
             <DownOutlined />
           </div>
         </div>
-        <div
+        <button
           className="swapButton"
-          disabled={!tokenOneAmount || !isConnected}
+          disabled={!tokenOneAmount || !isConnected || loading}
           onClick={fetchDexSwap}
         >
           Swap
-        </div>
+        </button>
       </div>
     </>
   );
