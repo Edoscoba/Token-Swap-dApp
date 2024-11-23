@@ -3,22 +3,22 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { BrowserRouter } from "react-router-dom";
-import { configureChains, createConfig } from 'wagmi'
-import { WagmiProvider, WagmiConfig, createClient } from "wagmi";
-import { mainnet, sepolia } from 'wagmi/chains'
+import { configureChains, createClient, WagmiConfig } from "wagmi";
+import { mainnet, sepolia } from "wagmi/chains";
 import { publicProvider } from "wagmi/providers/public";
 
-
-const { provider, web3SocketProvider } = configureChains(
-  [mainnet, sepolia],
-  [publicProvider()]
+const { provider, webSocketProvider } = configureChains(
+  [mainnet, sepolia], // Supported chains
+  [publicProvider()] // Use public provider
 );
 
-const client = createClient({
+const wagmiClient = createClient({
   autoConnect: true,
   provider,
-  web3SocketProvider,
+  webSocketProvider,
 });
+
+console.log("Wagmi Client Initialized:", wagmiClient); // Debugging
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
