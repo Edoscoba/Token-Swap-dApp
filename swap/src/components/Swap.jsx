@@ -155,7 +155,7 @@ useEffect(()=>{
     messageApi.open({
       type:'loading',
       content:'transaction is pending...',
-      duration: 1.50,
+      duration: 0,
     })
   }
 }, [isLoading])
